@@ -29,12 +29,12 @@
 
           propagatedBuildInputs = with pkgs; [
             nix
-            nix-serve
+            nix-serve-ng
           ] ++ packages;
         };
 
         peerix = pkgs.writeShellScriptBin "peerix" ''
-          PATH=${pkgs.nix}/bin:${pkgs.nix-serve}:$PATH
+          PATH=${pkgs.nix}/bin:${pkgs.nix-serve-ng}:$PATH
           exec ${peerix-unwrapped}/bin/peerix "$@"
         '';
       };
@@ -43,7 +43,7 @@
 
       devShell = pkgs.mkShell {
         buildInputs = with pkgs; [
-          nix-serve
+          nix-serve-ng
           niv
           (python.withPackages (ps: packages))
         ];

@@ -106,7 +106,7 @@ async def local():
 
         logger.info("Launching nix-serve.")
         process = await asyncio.create_subprocess_exec(
-            nix_serve, "--listen", sock,
+            nix_serve, "--socket", sock,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=sys.stderr
