@@ -1,4 +1,9 @@
-{ lib, config, pkgs, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.peerix;
 in
@@ -23,11 +28,11 @@ in
         '';
       };
 
-      publicKeyFile = lib.mkOption {
-        type = types.nullOr types.path;
-        default = null;
+      publicKeyFiles = lib.mkOption {
+        type = types.listOf types.path;
+        default = [ ];
         description = ''
-          File containing the public key to sign the derivations with.
+          List of files containing the public key to sign the derivations with.
         '';
       };
 
@@ -56,7 +61,12 @@ in
       };
 
       user = lib.mkOption {
-        type = with types; oneOf [ str int ];
+        type =
+          with types;
+          oneOf [
+            str
+            int
+          ];
         default = "nobody";
         description = ''
           The user the service will use.
@@ -64,7 +74,12 @@ in
       };
 
       group = lib.mkOption {
-        type = with types; oneOf [ str int ];
+        type =
+          with types;
+          oneOf [
+            str
+            int
+          ];
         default = "nobody";
         description = ''
           The user the service will use.
@@ -95,82 +110,85 @@ in
   };
 
   config = lib.mkIf (cfg.enable) {
-    systemd.services.peerix = let toto = if cfg.disableBroadcast then "true" else "false"; in {
-      enable = true;
-      description = "Local p2p nix caching daemon";
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "simple";
+    systemd.services.peerix =
+      let
+        toto = if cfg.disableBroadcast then "true" else "false";
+      in
+      {
+        enable = true;
+        description = "Local p2p nix caching daemon";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "simple";
 
-        User = cfg.user;
-        Group = cfg.group;
+          User = cfg.user;
+          Group = cfg.group;
 
-        PrivateMounts = true;
-        PrivateDevices = true;
-        PrivateTmp = true;
-        PrivateIPC = true;
-        PrivateUsers = true;
+          PrivateMounts = true;
+          PrivateDevices = true;
+          PrivateTmp = true;
+          PrivateIPC = true;
+          PrivateUsers = true;
 
-        SystemCallFilters = [
-          "@aio"
-          "@basic-io"
-          "@file-system"
-          "@io-event"
-          "@process"
-          "@network-io"
-          "@timer"
-          "@signal"
-          "@alarm"
-        ];
-        SystemCallErrorNumber = "EPERM";
+          SystemCallFilters = [
+            "@aio"
+            "@basic-io"
+            "@file-system"
+            "@io-event"
+            "@process"
+            "@network-io"
+            "@timer"
+            "@signal"
+            "@alarm"
+          ];
+          SystemCallErrorNumber = "EPERM";
 
-        ProtectSystem = "full";
-        ProtectHome = true;
-        ProtectHostname = true;
-        ProtectClock = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectKernelLogs = true;
-        ProtectControlGroups = true;
-        RestrictNamespaces = "";
+          ProtectSystem = "full";
+          ProtectHome = true;
+          ProtectHostname = true;
+          ProtectClock = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          RestrictNamespaces = "";
 
-        NoNewPrivileges = true;
-        ReadOnlyPaths = lib.mkMerge [
-          ([
-            "/nix/var"
+          NoNewPrivileges = true;
+          ReadOnlyPaths = lib.mkMerge [
+            ([
+              "/nix/var"
+              "/nix/store"
+            ])
+
+            (lib.mkIf (cfg.privateKeyFile != null) [
+              cfg.privateKeyFile
+            ])
+          ];
+          ExecPaths = [
             "/nix/store"
-          ])
+          ];
+          Environment = lib.mkMerge [
+            ([
+              "PEERIX_EXTRA_HOSTS=${lib.strings.concatStringsSep "," cfg.extraHosts}"
+              "PEERIX_DISABLE_BROADCAST=${toto}"
+            ])
 
-          (lib.mkIf (cfg.privateKeyFile != null) [
-            cfg.privateKeyFile
-          ])
-        ];
-        ExecPaths = [
-          "/nix/store"
-        ];
-        Environment = lib.mkMerge [
-          ([
-            "PEERIX_EXTRA_HOSTS=${lib.strings.concatStringsSep "," cfg.extraHosts}"
-            "PEERIX_DISABLE_BROADCAST=${toto}"
-          ])
-
-          (lib.mkIf (cfg.privateKeyFile != null) [
-            "NIX_SECRET_KEY_FILE=${cfg.privateKeyFile}"
-          ])
-        ];
+            (lib.mkIf (cfg.privateKeyFile != null) [
+              "NIX_SECRET_KEY_FILE=${cfg.privateKeyFile}"
+            ])
+          ];
+        };
+        script = ''
+          exec ${cfg.package}/bin/peerix
+        '';
       };
-      script = ''
-        exec ${cfg.package}/bin/peerix
-      '';
-    };
 
     nix = {
       settings = {
         substituters = [
           "http://127.0.0.1:12304/"
         ];
-        trusted-public-keys = [
-          (lib.mkIf (cfg.publicKeyFile != null) (builtins.readFile cfg.publicKeyFile))
+        trusted-public-keys = (map (x: builtins.readFile x) cfg.publicKeyFiles) ++ [
           (lib.mkIf (cfg.publicKey != null) cfg.publicKey)
         ];
       };
